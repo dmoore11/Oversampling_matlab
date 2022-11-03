@@ -5950,9 +5950,10 @@ class popy(object):
         else:
             self.nl2 = len(l2g_data['latc'])
     
-    def F_subset_IASINH3(self,path,which_metop='A',
-                         l2_path_structure=None,
-                         ellipse_lut_path='daysss.mat'):
+    def F_subset_IASINH3(self,path=None,which_metop='A',
+                         l2_path_pattern=None,
+                         ellipse_lut_path='daysss.mat',
+                        l2_list=None):
         '''
         function to subset IASI NH3 level2 files
         path:
@@ -5971,25 +5972,42 @@ class popy(object):
         import glob
         from scipy.io import loadmat
         from scipy.interpolate import RegularGridInterpolator
-        l2_dir = path
-        l2_list = []
-        cwd = os.getcwd()
-        os.chdir(l2_dir)
-        start_date = self.start_python_datetime.date()
-        end_date = self.end_python_datetime.date()
-        days = (end_date-start_date).days+1
-        DATES = [start_date + datetime.timedelta(days=d) for d in range(days)]
-        for DATE in DATES:
-            if l2_path_structure == None:
-                flist = glob.glob('IASI_METOP'+which_metop+'_L2_NH3_'+DATE.strftime("%Y%m%d")+'*.nc')
-            else:
-                flist = glob.glob(DATE.strftime(l2_path_structure)+\
-                                  'IASI_METOP'+which_metop+'_L2_NH3_'+DATE.strftime("%Y%m%d")+'*.nc')
-            l2_list = l2_list+flist
-        
-        os.chdir(cwd)
-        self.l2_dir = l2_dir
-        self.l2_list = l2_list
+        if path is not None:
+            self.logger.warning('please use l2_list or l2_path_pattern instead')
+            import glob
+            l2_dir = path
+            l2_list = []
+            cwd = os.getcwd()
+            os.chdir(l2_dir)
+            start_date = self.start_python_datetime.date()
+            end_date = self.end_python_datetime.date()
+            days = (end_date-start_date).days+1
+            DATES = [start_date + datetime.timedelta(days=d) for d in range(days)]
+            for DATE in DATES:
+                flist = glob.glob('IASI_METOP'+which_metop+'*'+DATE.strftime("%Y%m%d")+'*.nc')
+                l2_list = l2_list+flist
+            os.chdir(cwd)
+            self.l2_dir = l2_dir
+            self.l2_list = l2_list
+        else:
+            if l2_list is None and l2_path_pattern is None:
+                self.logger.error('either l2_list or l2_path_pattern has to be provided!')
+                return
+            if l2_list is not None and l2_path_pattern is not None:
+                self.logger.info('both l2_list and l2_path_pattern are provided. l2_path_pattern will be overwritten')
+                l2_path_pattern = None
+            
+            if l2_list is None:
+                import glob
+                l2_list = []
+                start_date = self.start_python_datetime.date()
+                end_date = self.end_python_datetime.date()
+                days = (end_date-start_date).days+1
+                DATES = [start_date + datetime.timedelta(days=d) for d in range(days)]
+                for DATE in DATES:
+                    flist = glob.glob(DATE.strftime(l2_path_pattern))
+                    l2_list = l2_list+flist                 
+            self.l2_list = l2_list
         
         varnames = ['time','latitude','longitude','solar_zenith_angle',
                     'pixel_number','cloud_coverage','AMPM',
@@ -6005,7 +6023,7 @@ class popy(object):
         f_ttt = RegularGridInterpolator((np.arange(-90.,91.),np.arange(1,121)),pixel_lut['ttt4']) 
         ref_dt = datetime.datetime(2007,1,1,0,0,0)
         for fn in l2_list:
-            file_path = os.path.join(l2_dir,fn)
+            file_path = fn#os.path.join(l2_dir,fn)
             self.logger.info('loading '+fn)
             try:
                 outp = F_ncread_selective(file_path,varnames)
